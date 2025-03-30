@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>RestTool - API Tester</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 30px;
+            background-color: #f9f9f9;
+        }
+        h1 {
+            color: #333;
+        }
+        label {
+            display: block;
+            margin-top: 10px;
+        }
+        textarea, input[type="text"] {
+            width: 100%;
+            padding: 8px;
+        }
+        select {
+            padding: 6px;
+        }
+        button {
+            margin-top: 15px;
+            padding: 10px 20px;
+        }
+        .headers, .params {
+            margin-top: 10px;
+        }
+        .section-title {
+            margin-top: 20px;
+            font-weight: bold;
+        }
+        .key-value-pair {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 5px;
+        }
+        .key-value-pair input {
+            flex: 1;
+        }
+        pre {
+            background: #eee;
+            padding: 10px;
+            overflow-x: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 25px;
+        }
+        th, td {
+            border: 1px solid #aaa;
+            padding: 8px;
+            text-align: left;
+        }
+    </style>
+    <script>
+        function toggleBodyField() {
+            const method = document.getElementById("method").value;
+            const bodySection = document.getElementById("body-section");
+            bodySection.style.display = ["POST", "PUT", "PATCH"].includes(method) ? 'block' : 'none';
+        }
+
+        function addHeaderRow() {
+            const container = document.getElementById("headers-container");
+            const row = document.createElement("div");
+            row.className = "key-value-pair";
+            row.innerHTML = `
+                <input type="text" name="headers" placeholder="Header Key">
+                <input type="text" name="headers" placeholder="Header Value">
+            `;
+            container.appendChild(row);
+        }
+
+        function addParamRow() {
+            const container = document.getElementById("params-container");
+            const row = document.createElement("div");
+            row.className = "key-value-pair";
+            row.innerHTML = `
+                <input type="text" name="params" placeholder="Query Key">
+                <input type="text" name="params" placeholder="Query Value">
+            `;
+            container.appendChild(row);
+        }
+
+    document.addEventListener("DOMContentLoaded", () => {
+        const rawInput = document.getElementById("rawCurlInput");
+
+        // ✅ Auto-parse on paste
+        rawInput.addEventListener("paste", (e) => {
+            setTimeout(() => {
+                parseCurl(); // small delay to ensure textarea is updated
+            }, 100);
+        });
+    });
+
+    function parseCurl() {
+        const raw = document.getElementById("rawCurlInput").value;
+
+        if (!raw.trim().startsWith("curl")) {
+            return; // skip invalid
+        }
+
+        const methodMatch = raw.match(/-X\s+(\w+)/i);
+        const urlMatch = raw.match(/"((http|https):\/\/[^"]+)"/);
+        const headersMatch = [...raw.matchAll(/-H\s+"([^:]+):\s?([^"]+)"/g)];
+        const bodyMatch = raw.match(/-d\s+'([^']+)'|-d\s+"([^"]+)"/);
+
+        // Set method
+        if (methodMatch && methodMatch[1]) {
+            document.getElementById("method").value = methodMatch[1].toUpperCase();
+            toggleBodyField();
+        }
+
+        // Set URL
+        if (urlMatch && urlMatch[1]) {
+            document.getElementById("url").value = urlMatch[1];
+        }
+
+        // Clear existing headers
+        document.getElementById("headers-container").innerHTML = "";
+
+        // Set headers
+        headersMatch.forEach(h => {
+            const key = h[1]?.trim() || "";
+            const value = h[2]?.trim() || "";
+            const row = document.createElement("div");
+            row.className = "key-value-pair";
+            row.innerHTML = `
+                <input type="text" name="headers" value="${key}" placeholder="Header Key">
+                <input type="text" name="headers" value="${value}" placeholder="Header Value">
+            `;
+            document.getElementById("headers-container").appendChild(row);
+        });
+
+        // Set body
+        const bodyValue = bodyMatch?.[1] || bodyMatch?.[2];
+        if (bodyValue) {
+            document.getElementById("body").value = decodeURIComponent(bodyValue);
+        }
+    }
+
+    </script>
+</head>
+<body onload="toggleBodyField()">
+<h1>🔧 RestTool - API Testing Web App</h1>
+
+<!-- ✅ Paste curl command to autofill the form -->
+<div>
+    <label for="rawCurlInput"><strong>Paste curl command:</strong></label><br>
+    <textarea id="rawCurlInput" rows="5" placeholder='curl -X POST "https://api.com" -H "Content-Type: application/json" -d "{\"name\":\"Dudu\"}"'></textarea><br>
+    <button type="button" onclick="parseCurl()">🔍 Parse cURL</button>
+</div>
+
+
+<form th:action="@{/send}" th:object="${apiRequest}" method="post">
+    <label for="method">HTTP Method:</label>
+    <select id="method" th:field="*{method}" onchange="toggleBodyField()">
+        <option value="GET">GET</option>
+        <option value="POST">POST</option>
+        <option value="PUT">PUT</option>
+        <option value="DELETE">DELETE</option>
+        <option value="PATCH">PATCH</option>
+    </select>
+
+    <label for="url">API URL:</label>
+    <input type="text" id="url" th:field="*{url}" placeholder="https://api.example.com/data" required/>
+
+    <div class="section-title">🔗 Query Parameters</div>
+    <div id="params-container" class="params"></div>
+    <button type="button" onclick="addParamRow()">+ Add Query Param</button>
+
+    <div class="section-title">🛠 Headers</div>
+    <div id="headers-container" class="headers"></div>
+    <button type="button" onclick="addHeaderRow()">+ Add Header</button>
+
+    <div id="body-section">
+        <label for="body">📦 Request Body (for POST only):</label>
+        <textarea id="body" th:field="*{body}" rows="8" placeholder='{"key": "value"}'></textarea>
+    </div>
+
+    <button type="submit">🚀 Send Request</button>
+</form>
+
+<!-- ✅ Response Section -->
+<div th:if="${apiResponse != null}">
+    <h2>📬 Response</h2>
+    <p><strong>Status Code:</strong> <span th:text="${apiResponse.statusCode}"></span></p>
+    <p><strong>Response Body:</strong></p>
+    <pre th:text="${apiResponse.responseBody}"></pre>
+</div>
+
+<!-- ✅ Request History Section -->
+<div th:if="${historyList != null}">
+    <h2>🕓 Request History</h2>
+    <table>
+        <thead>
+        <tr>
+            <th>Method</th>
+            <th>URL</th>
+            <th>Status</th>
+            <th>Timestamp</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="h : ${historyList}">
+            <td th:text="${h.method}">GET</td>
+            <td th:text="${h.url}">https://api.example.com</td>
+            <td th:text="${h.statusCode}">200</td>
+            <td th:text="${#temporals.format(h.timestamp, 'yyyy-MM-dd HH:mm:ss')}">2025-03-30</td>
+        </tr>
+        </tbody>
+    </table>
+</div>
+
+</body>
+</html>
